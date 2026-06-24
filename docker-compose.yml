@@ -1,0 +1,25 @@
+services:
+  controller:
+    build: .
+    container_name: jenkins-controller
+    ports:
+      - "8080:8080"
+    environment:
+      CASC_JENKINS_CONFIG: /var/jenkins_casc/casc.yaml
+      SECRETS: /var/jenkins_keys
+      JAVA_OPTS: "-Djenkins.install.runSetupWizard=false"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - ./casc.yaml:/var/jenkins_casc/casc.yaml:ro
+      - ./keys:/var/jenkins_keys:ro
+    depends_on:
+      - agent
+
+  agent:
+    image: jenkins/ssh-agent:latest-jdk17
+    container_name: jenkins-agent
+    environment:
+      JENKINS_AGENT_SSH_PUBKEY: "${AGENT_PUBKEY}"
+
+volumes:
+  jenkins_home:

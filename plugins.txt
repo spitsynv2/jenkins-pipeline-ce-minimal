@@ -1,0 +1,14 @@
+configuration-as-code
+workflow-aggregator
+job-dsl
+ssh-slaves
+git
+pipeline-maven
+build-user-vars-plugin
+timestamper
+pipeline-utility-steps
+htmlpublisher
+http_request
+config-file-provider
+extensible-choice-parameter
+hidden-parameter

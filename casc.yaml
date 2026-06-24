@@ -1,0 +1,149 @@
+jenkins:
+  systemMessage: "Zebrunner-CE sandbox: register a repo -> auto-generate its test jobs"
+  numExecutors: 1
+  globalNodeProperties:
+    - envVars:
+        env:
+          - key: "ZEBRUNNER_LOG_LEVEL"
+            value: "INFO"
+          - key: "ZEBRUNNER_VERSION"
+            # ==> CHANGE HERE (#3 pipeline fork): branch/tag of YOUR pipeline-ce fork
+            value: "2.3"
+          - key: "ZEBRUNNER_PIPELINE"
+            # ==> CHANGE HERE (#3 pipeline fork): used by the scanner to fetch the
+            #     library source for Job DSL. Point it at your fork.
+            value: "https://github.com/<YOUR-ORG>/pipeline-ce.git"
+  nodes:
+    # ---------------------------------------------------------------------
+    # LOCAL agent (default): the docker "agent" container, connected over SSH.
+    # ---------------------------------------------------------------------
+    - permanent:
+        name: "DEV-USE1-ZEBRUNNER-SLAVE-01"
+        labelString: "DEV-USE1-ZEBRUNNER-SLAVE-01 maven"
+        remoteFS: "/home/jenkins/agent"
+        retentionStrategy: "always"
+        launcher:
+          ssh:
+            host: "agent"
+            port: 22
+            credentialsId: "agent-ssh"
+            sshHostKeyVerificationStrategy:
+              nonVerifyingKeyVerificationStrategy: {}
+    # ---------------------------------------------------------------------
+    # EC2 agent (#4): to run on an EC2 instead, comment out the LOCAL
+    # node above and uncomment this one after filling the placeholders.
+    # Prereqs on the EC2 instance: Java 17 + git + maven installed, and the
+    # security group must allow inbound TCP 22 from this controller.
+    # ---------------------------------------------------------------------
+    # - permanent:
+    #     name: "DEV-USE1-ZEBRUNNER-SLAVE-01"
+    #     labelString: "DEV-USE1-ZEBRUNNER-SLAVE-01 maven"
+    #     remoteFS: "/home/ubuntu/agent"          # writable dir on the EC2
+    #     retentionStrategy: "always"
+    #     launcher:
+    #       ssh:
+    #         host: "<EC2-PUBLIC-OR-PRIVATE-DNS>" # ==> CHANGE HERE: EC2 hostname/IP
+    #         port: 22
+    #         credentialsId: "ec2-ssh"            # uses the ec2-ssh credential below
+    #         sshHostKeyVerificationStrategy:
+    #           nonVerifyingKeyVerificationStrategy: {}
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "admin"
+          password: "admin"
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: true
+
+security:
+  globalJobDslSecurityConfiguration:
+    useScriptSecurity: false
+
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - basicSSHUserPrivateKey:
+              scope: GLOBAL
+              id: "agent-ssh"
+              username: "jenkins"
+              privateKeySource:
+                directEntry:
+                  privateKey: "${SSH_PRIVATE_KEY}"
+          # EC2 (#4): private key for the EC2 user (e.g. ubuntu/ec2-user).
+          # Put the key contents in jenkins-local-test/.env as EC2_PRIVATE_KEY.
+          # - basicSSHUserPrivateKey:
+          #     scope: GLOBAL
+          #     id: "ec2-ssh"
+          #     username: "ubuntu"               # ==> CHANGE HERE: EC2 login user
+          #     privateKeySource:
+          #       directEntry:
+          #         privateKey: "${EC2_PRIVATE_KEY}"
+
+tool:
+  maven:
+    installations:
+      - name: "M3"
+        properties:
+          - installSource:
+              installers:
+                - maven:
+                    id: "3.9.9"
+
+unclassified:
+  globalLibraries:
+    libraries:
+      - name: "Zebrunner-CE"
+        # ==> CHANGE HERE (#3 pipeline fork): branch/tag of your fork
+        defaultVersion: "2.3"
+        allowVersionOverride: true
+        retriever:
+          modernSCM:
+            scm:
+              git:
+                # ==> CHANGE HERE (#3 pipeline fork): your fork URL
+                remote: "https://github.com/<YOUR-ORG>/pipeline-ce.git"
+  # Mirrors the client's Config File Provider "variables.env" (their snapshot).
+  # NOTE: ZEBRUNNER_NODE_MAVEN is intentionally ONLY here (a config file), not a
+  # global env var -- exactly like the client. The library can only read it from
+  # inside a node, so it does NOT drive the initial node pick. The slave routing
+  # comes from the suite XML's jenkinsNodeLabel -> node_label instead.
+  globalConfigFiles:
+    configs:
+      - custom:
+          id: "variables.env"
+          name: "variables.env"
+          comment: "Zebrunner runtime variables"
+          content: |
+            ZEBRUNNER_LOG_LEVEL=INFO
+            ZEBRUNNER_VERSION=2.3
+            ZEBRUNNER_NODE_MAVEN=DEV-USE1-ZEBRUNNER-SLAVE-01
+            selenium_url=http://selenium-hub:4444/wd/hub
+            JOB_MAX_RUN_TIME=60
+            auto_screenshot=true
+
+jobs:
+  - script: >
+      pipelineJob('Register-Repository') {
+        description('Clones a Carina/TestNG repo, reads every *.xml suite, and auto-generates one test job per suite. This is the only job you run by hand; everything else is created from the repo.')
+        parameters {
+          // ==> CHANGE HERE (#1 your repo): default URL of the repo to onboard.
+          //     For a Carina-based repo you only need the URL + branch; suites are
+          //     auto-discovered from src/test/resources/**/*.xml. No extra config.
+          stringParam('repoUrl', 'https://github.com/<YOUR-ORG>/<YOUR-CARINA-REPO>.git', 'Git URL of the repo to scan')
+          stringParam('branch', 'main', 'SCM branch to scan')
+          stringParam('scmType', 'github', 'SCM provider: github | gitlab | bitbucket')
+          booleanParam('onlyUpdated', false, 'Scan only changed suites (false = full rescan)')
+          stringParam('removedConfigFilesAction', 'IGNORE', '')
+          stringParam('removedJobAction', 'IGNORE', '')
+          stringParam('removedViewAction', 'IGNORE', '')
+        }
+        definition {
+          cps {
+            sandbox(true)
+            script("@Library('Zebrunner-CE') _\nimport com.zebrunner.jenkins.pipeline.runner.maven.TestNG\nnew TestNG(this).onPush()")
+          }
+        }
+      }
