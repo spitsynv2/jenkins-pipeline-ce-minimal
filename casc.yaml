@@ -147,3 +147,22 @@ jobs:
           }
         }
       }
+  - script: >
+      pipelineJob('Register-Selenium-Hub') {
+        description('Registers a Selenium/Selenoid hub URL as the "<provider>_hub" Jenkins credential. Test jobs read it via setSeleniumUrl(); if absent they fall back to http://selenoid:4444/wd/hub. Run once (re-run to update the URL).')
+        parameters {
+          // provider MUST match the test job''s provider (default "zebrunner"),
+          // otherwise the credential name (<provider>_hub) won''t be picked up.
+          stringParam('provider', 'zebrunner', 'Hub provider name -> credential id "<provider>_hub"')
+          // ==> CHANGE HERE: your Selenium/Selenoid hub URL.
+          stringParam('url', 'http://selenoid:4444/wd/hub', 'Full Selenium hub URL, e.g. http://host:4444/wd/hub')
+          // leave empty for a global hub; set to a folder name to scope it per-org.
+          stringParam('folderName', '', 'Optional org/folder scope -> "<folderName>-<provider>_hub"')
+        }
+        definition {
+          cps {
+            sandbox(true)
+            script("@Library('Zebrunner-CE') _\nimport com.zebrunner.jenkins.pipeline.Organization\nnew Organization(this).registerHubCredentials()")
+          }
+        }
+      }
