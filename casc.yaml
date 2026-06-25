@@ -13,6 +13,9 @@ jenkins:
             # ==> CHANGE HERE (#3 pipeline fork): used by the scanner to fetch the
             #     library source for Job DSL. Point it at your fork.
             value: "https://github.com/<YOUR-ORG>/pipeline-ce.git"
+            # ==> CHANGE HERE: your Zebrunner node Maven URL.
+          - key: "ZEBRUNNER_NODE_MAVEN"
+            value: "DEV-USE1-ZEBRUNNER-SLAVE-01"
   nodes:
     # ---------------------------------------------------------------------
     # LOCAL agent (default): the docker "agent" container, connected over SSH.
