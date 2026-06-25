@@ -3,6 +3,7 @@ workflow-aggregator
 job-dsl
 ssh-slaves
 git
+github
 pipeline-maven
 build-user-vars-plugin
 timestamper
