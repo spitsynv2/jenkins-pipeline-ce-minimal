@@ -4,6 +4,7 @@ job-dsl
 ssh-slaves
 git
 github
+matrix-auth
 pipeline-maven
 build-user-vars-plugin
 timestamper
